@@ -1,0 +1,114 @@
+---
+title: "Presentation"
+author: "Max"
+date: "1/17/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(randomForest)
+library(corrplot)
+set.seed(666)
+```
+
+## Synopsis
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+The data come from:
+
+
+## Data
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+
+
+## Loading and cleaning data
+First, we will download the data file and clean the empty values:
+```{r part1}
+training = read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), na.strings = c("NA", "#DIV/0!"))
+testing = read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), na.strings = c("NA", "#DIV/0!"))
+```
+
+
+We can see that there are quite a lot of variables (160) and we don't need all of them.
+The next step will be to continue to clean the data and remove teh useless variables, as seen during the different lessons. We can begin to remove the near zero variance predictors:
+
+```{r clean}
+zero <- nearZeroVar(training)
+training <- training[, -zero]
+dim(training)
+```
+
+We have now 124 variables which is still a lot.
+Some have a lot of NA and will pollute the data some we can also remove them:
+```{r NA}
+naval    <- sapply(training, function(x) mean(is.na(x))) > 0.95
+training <- training[, naval == FALSE]
+dim(training)
+```
+
+Now taht we reduced to 59 variables, we can also remove the useless 5 first columns that are just here for identification:
+```{r id}
+training <- training[, -(1:5)]
+dim(training)
+```
+
+Let's now create the partition fro the training data to create a new training (70%) and testing (30%) dataset:
+```{r exploration}
+Train  = createDataPartition(training$classe, p = 0.7, list = FALSE)
+TrainSet = training[Train, ]
+TestSet  = training[-Train, ]
+dim(TrainSet)
+dim(TestSet)
+```
+
+Finally, let's see the correlation:
+```{r correlation}
+correl <- cor(TrainSet[, -54])
+corrplot(correl, order = "FPC", method = "color", type = "lower", tl.cex = 0.8, tl.col = rgb(0, 0, 0))
+```
+
+
+## Testing the different models and selecting the best one with cross validation
+Let's try the different possibilities offered by teh caret package.
+
+1. rpart
+```{r rpart}
+cv3 = trainControl(method = "cv", number = 3, allowParallel = TRUE, verboseIter = TRUE)
+mtree = train(classe~., data = training, method = "rpart", trControl = cv3)
+ptree = predict(mtree, training)
+table(ptree, training$classe)
+```
+
+2. randomForest
+```{r randomForest}
+mrf = train(classe~., data = training, method = "rf", trControl = cv3)
+prf = predict(mrf, training)
+table(prf, training$classe)
+```
+
+## testing on the testing data
+Now we can test the model on the testing data
+```{r test}
+prf2 = predict(mrf, testing)
+ptree2 = predict(mtree, testing)
+table(prf2, ptree2)
+```
+
+As we can see, the randomForest fit better.
+So Let's use it for the final task.
+
+
+## Predict 20 different test cases
+```{r end}
+answers = predict(mrf, testing)
+answers
+```
+
+
